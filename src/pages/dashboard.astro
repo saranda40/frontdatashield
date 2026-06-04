@@ -5,7 +5,6 @@ import Layout from '../layouts/Layout.astro';
 <Layout title="Panel de Cumplimiento Interno">
   <div class="space-y-6">
     
-    <!-- Encabezado del Dashboard -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-5 gap-4">
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
@@ -15,14 +14,12 @@ import Layout from '../layouts/Layout.astro';
           Monitoreo de solicitudes ARCO y trazabilidad legal de datos personales en DataShield Chile.
         </p>
       </div>
-      <!-- Indicador de Rol -->
       <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 w-fit">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         Oficial de Cumplimiento Interno
       </div>
     </div>
 
-    <!-- Contenedor Principal de la Tabla -->
     <div class="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-100 overflow-hidden">
       <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
         <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">
@@ -46,7 +43,6 @@ import Layout from '../layouts/Layout.astro';
             </tr>
           </thead>
           <tbody id="arcoTableBody" class="divide-y divide-slate-100 text-sm">
-            <!-- Los datos se inyectarán de forma dinámica aquí con JavaScript -->
             <tr id="loadingRow">
               <td colspan="6" class="p-8 text-center text-slate-500 font-medium">
                 Cargando registros desde la base de datos fiscalizadora...
@@ -57,53 +53,82 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </div>
   </div>
+
+  <div id="resolutionModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden animate-fade-in">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 m-4">
+      <div>
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Dictaminar Resolución</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Se registrará tu firma de oficial y se enviará un correo con el veredicto.</p>
+      </div>
+      
+      <div>
+        <label for="modalNotes" class="block text-sm font-semibold text-slate-700 mb-1">
+          Razón o Fundamentos de la Decisión
+        </label>
+        <textarea 
+          id="modalNotes" 
+          rows="4" 
+          required
+          placeholder="Ej: Se procede al borrado total de los registros en producción tras la validación de identidad..." 
+          class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none resize-none text-sm"
+        ></textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 text-xs pt-2">
+        <button id="btnCancelModal" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-lg transition-colors">
+          Cancelar
+        </button>
+        <button id="btnConfirmModal" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg transition-colors shadow-md">
+          Confirmar Dictamen
+        </button>
+      </div>
+    </div>
+  </div>
 </Layout>
 
 <script>
-  // URL base de la API del Backend
   const API_URL = 'http://localhost:3000/api/arco';
+  
+  // Referencias a los elementos del Modal
+  const modal = document.getElementById('resolutionModal') as HTMLDivElement;
+  const modalTitle = document.getElementById('modalTitle') as HTMLHeadingElement;
+  const modalNotes = document.getElementById('modalNotes') as HTMLTextAreaElement;
+  const btnCancelModal = document.getElementById('btnCancelModal');
+  const btnConfirmModal = document.getElementById('btnConfirmModal') as HTMLButtonElement;
 
-  // Función para obtener las solicitudes ARCO y renderizarlas
+  // Variables de control de estado del flujo actual
+  let activeRequestId: string | null = null;
+  let activeTargetStatus: string = '';
+
   async function loadArcoRequests() {
     const tableBody = document.getElementById('arcoTableBody') as HTMLTableSectionElement;
     if (!tableBody) return;
 
     try {
       const response = await fetch(API_URL);
-      if (!response.ok) throw new Error('No se pudo obtener el historial.');
-      
+      if (!response.ok) throw new Error();
       const requests = await response.json();
 
       if (requests.length === 0) {
-        tableBody.innerHTML = `
-          <tr>
-            <td colspan="6" class="p-8 text-center text-slate-400">No hay solicitudes registradas en el sistema.</td>
-          </tr>
-        `;
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400">No hay solicitudes registradas.</td></tr>`;
         return;
       }
 
-      // Limpiar la tabla e inyectar las filas
       tableBody.innerHTML = '';
       
       requests.forEach((req: any) => {
-        // Formatear badges de estado visualmente atractivos
         let statusBadge = '';
         if (req.status === 'pendiente') {
           statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">Pendiente</span>`;
-        } else if (req.status === 'en_revision') {
-          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-800 border border-blue-200">En Revisión</span>`;
         } else if (req.status === 'resuelto') {
           statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">Resuelto</span>`;
         } else {
           statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-50 text-rose-800 border border-rose-200">Rechazado</span>`;
         }
 
-        // Formatear tipo de derecho ARCO
         const typeLabels: { [key: string]: string } = { 'A': 'Acceso', 'R': 'Rectificación', 'C': 'Cancelación', 'O': 'Oposición' };
         const typeLabel = typeLabels[req.request_type] || req.request_type;
 
-        // Crear fila
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/70 transition-colors";
         tr.innerHTML = `
@@ -113,67 +138,82 @@ import Layout from '../layouts/Layout.astro';
           <td class="p-4 text-slate-600 max-w-xs truncate" title="${req.details}">${req.details}</td>
           <td class="p-4">${statusBadge}</td>
           <td class="p-4">
-            ${req.status === 'pendiente' || req.status === 'en_revision' ? `
+            ${req.status === 'pendiente' ? `
               <select class="status-select bg-slate-50 border border-slate-300 text-slate-700 py-1 px-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all" data-id="${req.id}">
                 <option value="" disabled selected>Resolver...</option>
                 <option value="resuelto">Aprobar / Resolver</option>
                 <option value="rechazado">Rechazar Solicitud</option>
               </select>
             ` : `
-              <span class="text-xs text-slate-400 font-italic italic">Trámite Finalizado</span>
+              <span class="text-xs text-slate-400 font-italic italic" title="Nota interna: ${req.internal_notes || 'Sin observaciones'}">Trámite Finalizado</span>
             `}
           </td>
         `;
         tableBody.appendChild(tr);
       });
 
-      // Escuchar cambios en los select de la tabla de forma dinámica
+      // Capturar la apertura del Modal al cambiar el Select
       document.querySelectorAll('.status-select').forEach(select => {
-        select.addEventListener('change', async (e) => {
+        select.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
-          const id = target.getAttribute('data-id');
-          const newStatus = target.value;
+          activeRequestId = target.getAttribute('data-id');
+          activeTargetStatus = target.value;
 
-          if (confirm(`¿Confirmas cambiar el estado de la solicitud #${id} a "${newStatus}"?`)) {
-            await updateRequestStatus(id, newStatus);
-          } else {
-            target.value = ""; // Reestablecer selección si cancela
-          }
+          // Personalizar título del modal dinámicamente
+          modalTitle.innerText = activeTargetStatus === 'resuelto' 
+            ? `Aprobar Solicitud #${activeRequestId}` 
+            : `Rechazar Solicitud #${activeRequestId}`;
+
+          modalNotes.value = ''; // Limpiar campo
+          modal.classList.remove('hidden'); // Mostrar modal
         });
       });
 
     } catch (error) {
-      console.error(error);
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="6" class="p-8 text-center text-rose-600 font-medium">❌ Error de conexión al cargar el servidor de base de datos.</td>
-        </tr>
-      `;
+      tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-600 font-medium">❌ Error de conexión al servidor de datos.</td></tr>`;
     }
   }
 
-  // Función para disparar la actualización de estado vía PATCH al backend
-  async function updateRequestStatus(id: string | null, status: string) {
-    if (!id) return;
+  // Manejo del Cierre del Modal
+  btnCancelModal?.addEventListener('click', () => {
+    modal.classList.add('hidden');
+    loadArcoRequests(); // Recargar para limpiar la selección visual del select
+  });
+
+  // Confirmar y Enviar la Acción Legal con las Notas Internas
+  btnConfirmModal?.addEventListener('click', async () => {
+    const notesValue = modalNotes.value.trim();
+    if (!notesValue) {
+      alert('Por favor, ingresa los fundamentos o la razón de la resolución legal.');
+      return;
+    }
+
+    btnConfirmModal.disabled = true;
+    btnConfirmModal.innerText = 'Procesando...';
+
     try {
-      const response = await fetch(`${API_URL}/status/${id}`, {
+      const response = await fetch(`${API_URL}/status/${activeRequestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ 
+          status: activeTargetStatus,
+          notes: notesValue // <-- Enviamos la razón capturada en el modal
+        })
       });
 
-      if (!response.ok) throw new Error('Error al actualizar.');
+      if (!response.ok) throw new Error();
 
-      // Recargar la tabla tras el éxito para ver reflejado el cambio de estado y la fecha de resolución
+      modal.classList.add('hidden');
       await loadArcoRequests();
     } catch (error) {
-      alert('No se pudo actualizar el estado de la solicitud en el backend. Por favor, intenta nuevamente.');
+      alert('Error crítico al intentar guardar la resolución en el backend.');
+    } finally {
+      btnConfirmModal.disabled = false;
+      btnConfirmModal.innerText = 'Confirmar Dictamen';
     }
-  }
+  });
 
-  // Inicializar en el DOM
   document.getElementById('btnRefresh')?.addEventListener('click', loadArcoRequests);
   document.addEventListener('DOMContentLoaded', loadArcoRequests);
-  // Ejecución inmediata preventiva por ciclos de vida de Astro
   loadArcoRequests();
 </script>
