@@ -1,11 +1,133 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Registro y Consentimiento">
+	<div class="max-w-xl mx-auto">
+		<div class="text-center mb-8">
+			<h1 class="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">
+				Únete a la Comunidad
+			</h1>
+			<p class="mt-3 text-lg text-slate-600">
+				Crea tu cuenta corporativa y mantente actualizado.
+			</p>
+		</div>
+
+		<!-- Tarjeta del Formulario -->
+		<div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100">
+			<form id="consentForm" class="space-y-6">
+				
+				<!-- Campo Identificador -->
+				<div>
+					<label for="email" class="block text-sm font-semibold text-slate-700 mb-1">
+						Correo Electrónico
+					</label>
+					<input 
+						type="email" 
+						id="email" 
+						required 
+						placeholder="ejemplo@empresa.cl"
+						class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+					/>
+				</div>
+
+				<!-- Cláusula Legal de Consentimiento Explícito (Dinámica) -->
+				<div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+					<div class="flex items-start gap-3">
+						<input 
+							type="checkbox" 
+							id="acceptMarketing" 
+							class="mt-1 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+						/>
+						<label for="acceptMarketing" class="text-xs text-slate-600 leading-relaxed">
+							Acepto recibir comunicaciones comerciales de acuerdo con el documento legal: <br>
+							<span id="activePolicyLabel" class="font-semibold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded animate-pulse">
+								Cargando política vigente...
+							</span>
+						</label>
+					</div>
+				</div>
+
+				<!-- Botón de Envío -->
+				<button 
+					type="submit" 
+					class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20"
+				>
+					Registrarme de forma segura
+				</button>
+			</form>
+
+			<!-- Contenedor para mensajes de respuesta -->
+			<div id="responseMessage" class="mt-4 hidden p-4 rounded-xl text-sm font-medium"></div>
+		</div>
+	</div>
 </Layout>
+
+<script>
+	const form = document.getElementById('consentForm') as HTMLFormElement;
+	const messageBox = document.getElementById('responseMessage') as HTMLDivElement;
+	const policyLabel = document.getElementById('activePolicyLabel') as HTMLSpanElement;
+
+	// Al cargar la página, consultamos al backend por la versión activa en la base de datos
+	async function fetchActivePolicy() {
+		try {
+			const res = await fetch('http://localhost:3000/api/consent/active-policy');
+			if (!res.ok) throw new Error();
+			const policy = await res.json();
+			
+			// Reemplazamos el label con el código y título real de PostgreSQL
+			if (policyLabel) {
+				policyLabel.innerText = `${policy.content} (${policy.version_code})`;
+				policyLabel.classList.remove('animate-pulse', 'text-indigo-600', 'bg-indigo-50');
+				policyLabel.classList.add('text-slate-800');
+			}
+		} catch (error) {
+			if (policyLabel) {
+				policyLabel.innerText = "Política de Privacidad estándar vigente.";
+				policyLabel.classList.remove('animate-pulse');
+			}
+		}
+	}
+
+	// Ejecutar carga de política inicial
+	fetchActivePolicy();
+
+	form?.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const emailInput = document.getElementById('email') as HTMLInputElement;
+		const marketingCheckbox = document.getElementById('acceptMarketing') as HTMLInputElement;
+
+		const payload = {
+			user_identifier: emailInput.value,
+			purpose: 'marketing',
+			status: marketingCheckbox.checked ? 'valido' : 'rechazado',
+			origin: 'formulario_web_front',
+			ip_address: '127.0.0.1' 
+		};
+
+		try {
+			const response = await fetch('http://localhost:3000/api/consent/register', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.error || 'Error al conectar.');
+
+			messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200";
+			messageBox.innerHTML = `🛡️ <strong>¡Registro Exitoso!</strong><br>Consentimiento indexado de forma inmutable. Estado legal: <span class="underline">${payload.status}</span>.`;
+			messageBox.classList.remove('hidden');
+			form.reset();
+			
+			// Recargar la política por si acaso
+			fetchActivePolicy();
+
+		} catch (error: any) {
+			messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-rose-50 text-rose-800 border border-rose-200";
+			messageBox.innerText = `❌ Error: ${error.message}`;
+			messageBox.classList.remove('hidden');
+		}
+	});
+</script>

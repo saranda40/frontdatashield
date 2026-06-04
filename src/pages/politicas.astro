@@ -1,0 +1,157 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Gestión de Documentos Legales">
+  <div class="max-w-3xl mx-auto space-y-6">
+    
+    <div class="text-sm">
+      <a href="/dashboard" class="text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1">
+        &larr; Volver al Módulo de Auditoría
+      </a>
+    </div>
+
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        Editor de Políticas de Privacidad y Consentimientos
+      </h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Publica nuevas versiones de los términos legales. Las nuevas capturas de usuarios se asociarán automáticamente a la versión activa que definas aquí.
+      </p>
+    </div>
+
+    <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100">
+      <form id="policyForm" class="space-y-6">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="sm:col-span-1">
+            <label for="version_code" class="block text-sm font-semibold text-slate-700 mb-1">
+              Código de Versión
+            </label>
+            <input 
+              type="text" 
+              id="version_code" 
+              required 
+              placeholder="v1.1"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-mono"
+            />
+          </div>
+
+          <div class="sm:col-span-2">
+            <label for="title" class="block text-sm font-semibold text-slate-700 mb-1">
+              Título del Documento Legal
+            </label>
+            <input 
+              type="text" 
+              id="title" 
+              required 
+              placeholder="Términos de Marketing y Tratamiento de Datos Personales"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label for="description" class="block text-sm font-semibold text-slate-700 mb-1">
+            Resumen Ejecutivo u Objetivo (Opcional)
+          </label>
+          <input 
+            type="text" 
+            id="description" 
+            placeholder="Cláusula estándar para el formulario de suscripción de la landing page principal."
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-slate-600"
+          />
+        </div>
+
+        <div>
+          <label for="body_text" class="block text-sm font-semibold text-slate-700 mb-1">
+            Cuerpo Completo del Consentimiento (Texto Legal Oficial)
+          </label>
+          <textarea 
+            id="body_text" 
+            rows="8" 
+            required
+            placeholder="Por la presente, el usuario autoriza expresamente a DataShield Chile a recopilar, almacenar y procesar los siguientes datos de contacto..."
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none resize-none font-sans text-sm text-slate-700 leading-relaxed"
+          ></textarea>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+          <span class="text-base leading-none">⚠️</span>
+          <p>
+            <strong>Nota de Cumplimiento:</strong> Al guardar este documento, se marcará como versión activa en el backend. Asegúrate de actualizar el texto descriptivo de las casillas de verificación (checkboxes) en tus formularios públicos si hay cambios drásticos en los propósitos del tratamiento.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button 
+            type="button" 
+            id="btnCancel"
+            class="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-sm transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            type="submit" 
+            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20"
+          >
+            Publicar y Activar Política
+          </button>
+        </div>
+      </form>
+
+      <div id="policyResponse" class="mt-4 hidden p-4 rounded-xl text-sm font-medium"></div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const form = document.getElementById('policyForm') as HTMLFormElement;
+  const messageBox = document.getElementById('policyResponse') as HTMLDivElement;
+  const btnCancel = document.getElementById('btnCancel');
+
+  btnCancel?.addEventListener('click', () => {
+    if(confirm('¿Deseas descartar los cambios del documento legal?')) {
+      window.location.href = '/dashboard';
+    }
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const versionCodeInput = document.getElementById('version_code') as HTMLInputElement;
+    const titleInput = document.getElementById('title') as HTMLInputElement;
+    const descriptionInput = document.getElementById('description') as HTMLInputElement;
+    const bodyTextInput = document.getElementById('body_text') as HTMLTextAreaElement;
+
+    const payload = {
+      version_code: versionCodeInput.value.trim(),
+      title: titleInput.value.trim(),
+      description: descriptionInput.value.trim(),
+      body_text: bodyTextInput.value.trim()
+    };
+
+    try {
+      const response = await fetch('http://localhost:3000/api/consent/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Error al guardar el documento legal.');
+
+      messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200";
+      messageBox.innerHTML = `📜 <strong>¡Política Publicada de forma Inmutable!</strong><br>El documento legal fue indexado exitosamente bajo el código de versión <span class="font-mono bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-900">${result.data.version_code}</span>.`;
+      messageBox.classList.remove('hidden');
+      
+      form.reset();
+
+    } catch (error: any) {
+      messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-rose-50 text-rose-800 border border-rose-200";
+      messageBox.innerText = `❌ Error: ${error.message}`;
+      messageBox.classList.remove('hidden');
+    }
+  });
+</script>

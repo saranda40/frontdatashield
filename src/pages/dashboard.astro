@@ -1,0 +1,179 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Panel de Cumplimiento Interno">
+  <div class="space-y-6">
+    
+    <!-- Encabezado del Dashboard -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-5 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          Módulo de Auditoría y Control de Privacidad
+        </h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Monitoreo de solicitudes ARCO y trazabilidad legal de datos personales en DataShield Chile.
+        </p>
+      </div>
+      <!-- Indicador de Rol -->
+      <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 w-fit">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Oficial de Cumplimiento Interno
+      </div>
+    </div>
+
+    <!-- Contenedor Principal de la Tabla -->
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-100 overflow-hidden">
+      <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">
+          Buzón de Solicitudes Pendientes e Históricas
+        </h2>
+        <button id="btnRefresh" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition-colors">
+          🔄 Actualizar Datos
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 font-semibold text-xs border-b border-slate-200">
+              <th class="p-4 w-12 text-center">ID</th>
+              <th class="p-4">Usuario</th>
+              <th class="p-4 w-20 text-center">Derecho</th>
+              <th class="p-4">Detalles / Fundamentos</th>
+              <th class="p-4 w-36">Estado Actual</th>
+              <th class="p-4 w-40">Acción Legal</th>
+            </tr>
+          </thead>
+          <tbody id="arcoTableBody" class="divide-y divide-slate-100 text-sm">
+            <!-- Los datos se inyectarán de forma dinámica aquí con JavaScript -->
+            <tr id="loadingRow">
+              <td colspan="6" class="p-8 text-center text-slate-500 font-medium">
+                Cargando registros desde la base de datos fiscalizadora...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // URL base de la API del Backend
+  const API_URL = 'http://localhost:3000/api/arco';
+
+  // Función para obtener las solicitudes ARCO y renderizarlas
+  async function loadArcoRequests() {
+    const tableBody = document.getElementById('arcoTableBody') as HTMLTableSectionElement;
+    if (!tableBody) return;
+
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error('No se pudo obtener el historial.');
+      
+      const requests = await response.json();
+
+      if (requests.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="p-8 text-center text-slate-400">No hay solicitudes registradas en el sistema.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Limpiar la tabla e inyectar las filas
+      tableBody.innerHTML = '';
+      
+      requests.forEach((req: any) => {
+        // Formatear badges de estado visualmente atractivos
+        let statusBadge = '';
+        if (req.status === 'pendiente') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">Pendiente</span>`;
+        } else if (req.status === 'en_revision') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-800 border border-blue-200">En Revisión</span>`;
+        } else if (req.status === 'resuelto') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">Resuelto</span>`;
+        } else {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-50 text-rose-800 border border-rose-200">Rechazado</span>`;
+        }
+
+        // Formatear tipo de derecho ARCO
+        const typeLabels: { [key: string]: string } = { 'A': 'Acceso', 'R': 'Rectificación', 'C': 'Cancelación', 'O': 'Oposición' };
+        const typeLabel = typeLabels[req.request_type] || req.request_type;
+
+        // Crear fila
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/70 transition-colors";
+        tr.innerHTML = `
+          <td class="p-4 font-mono text-xs text-slate-400 text-center font-bold">${req.id}</td>
+          <td class="p-4 font-medium text-slate-900">${req.user_identifier}</td>
+          <td class="p-4 text-center"><span class="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs">${req.request_type}</span> <span class="block text-[10px] text-slate-400">${typeLabel}</span></td>
+          <td class="p-4 text-slate-600 max-w-xs truncate" title="${req.details}">${req.details}</td>
+          <td class="p-4">${statusBadge}</td>
+          <td class="p-4">
+            ${req.status === 'pendiente' || req.status === 'en_revision' ? `
+              <select class="status-select bg-slate-50 border border-slate-300 text-slate-700 py-1 px-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all" data-id="${req.id}">
+                <option value="" disabled selected>Resolver...</option>
+                <option value="resuelto">Aprobar / Resolver</option>
+                <option value="rechazado">Rechazar Solicitud</option>
+              </select>
+            ` : `
+              <span class="text-xs text-slate-400 font-italic italic">Trámite Finalizado</span>
+            `}
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+
+      // Escuchar cambios en los select de la tabla de forma dinámica
+      document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', async (e) => {
+          const target = e.target as HTMLSelectElement;
+          const id = target.getAttribute('data-id');
+          const newStatus = target.value;
+
+          if (confirm(`¿Confirmas cambiar el estado de la solicitud #${id} a "${newStatus}"?`)) {
+            await updateRequestStatus(id, newStatus);
+          } else {
+            target.value = ""; // Reestablecer selección si cancela
+          }
+        });
+      });
+
+    } catch (error) {
+      console.error(error);
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="6" class="p-8 text-center text-rose-600 font-medium">❌ Error de conexión al cargar el servidor de base de datos.</td>
+        </tr>
+      `;
+    }
+  }
+
+  // Función para disparar la actualización de estado vía PATCH al backend
+  async function updateRequestStatus(id: string | null, status: string) {
+    if (!id) return;
+    try {
+      const response = await fetch(`${API_URL}/status/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) throw new Error('Error al actualizar.');
+
+      // Recargar la tabla tras el éxito para ver reflejado el cambio de estado y la fecha de resolución
+      await loadArcoRequests();
+    } catch (error) {
+      alert('No se pudo actualizar el estado de la solicitud en el backend.');
+    }
+  }
+
+  // Inicializar en el DOM
+  document.getElementById('btnRefresh')?.addEventListener('click', loadArcoRequests);
+  document.addEventListener('DOMContentLoaded', loadArcoRequests);
+  // Ejecución inmediata preventiva por ciclos de vida de Astro
+  loadArcoRequests();
+</script>

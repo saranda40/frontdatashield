@@ -1,0 +1,135 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Portal de Transparencia ARCO">
+  <div class="max-w-2xl mx-auto">
+    
+    <!-- Encabezado Informativo -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">
+        Portal de Transparencia y Derechos ARCO+
+      </h1>
+      <p class="mt-3 text-sm text-slate-600 max-w-lg mx-auto">
+        De conformidad con las normativas de privacidad vigentes, puedes solicitar el Acceso, Rectificación, Cancelación u Oposición del tratamiento de tus datos personales.
+      </p>
+    </div>
+
+    <!-- Contenedor del Formulario -->
+    <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100">
+      <form id="arcoForm" class="space-y-6">
+        
+        <!-- Grid de Identificador y Tipo de Derecho -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="user_identifier" class="block text-sm font-semibold text-slate-700 mb-1">
+              Tu Correo o Identificador
+            </label>
+            <input 
+              type="email" 
+              id="user_identifier" 
+              required 
+              placeholder="juan.perez@empresa.cl"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+            />
+          </div>
+
+          <div>
+            <label for="request_type" class="block text-sm font-semibold text-slate-700 mb-1">
+              Derecho que deseas ejercer
+            </label>
+            <select 
+              id="request_type" 
+              required
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-slate-700 font-medium"
+            >
+              <option value="" disabled selected>Selecciona una opción...</option>
+              <option value="A">Acceso (Conocer qué datos tenemos)</option>
+              <option value="R">Rectificación (Modificar datos erróneos)</option>
+              <option value="C">Cancelación (Eliminar tus datos)</option>
+              <option value="O">Oposición (Bloquear un uso específico)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Detalles de la Solicitud -->
+        <div>
+          <label for="details" class="block text-sm font-semibold text-slate-700 mb-1">
+            Fundamento y detalles de la solicitud
+          </label>
+          <textarea 
+            id="details" 
+            rows="4" 
+            required
+            placeholder="Describe detalladamente qué acción requieres sobre tus datos personales..."
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Nota aclaratoria -->
+        <div class="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl text-xs text-indigo-950 flex items-start gap-2.5">
+          <span class="text-base leading-none">ℹ️</span>
+          <p>
+            Al enviar esta solicitud, se iniciará un proceso de auditoría interna legal. Los oficiales de cumplimiento tienen los plazos estipulados por ley para revisar y resolver tu caso.
+          </p>
+        </div>
+
+        <!-- Botón de Envío -->
+        <button 
+          type="submit" 
+          class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-slate-900/10 hover:shadow-slate-900/20"
+        >
+          Ingresar solicitud formal
+        </button>
+      </form>
+
+      <!-- Feedback de respuesta -->
+      <div id="arcoResponse" class="mt-4 hidden p-4 rounded-xl text-sm font-medium"></div>
+    </div>
+
+  </div>
+</Layout>
+
+<script>
+  const form = document.getElementById('arcoForm') as HTMLFormElement;
+  const messageBox = document.getElementById('arcoResponse') as HTMLDivElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const userIdentifierInput = document.getElementById('user_identifier') as HTMLInputElement;
+    const requestTypeSelect = document.getElementById('request_type') as HTMLSelectElement;
+    const detailsTextarea = document.getElementById('details') as HTMLInputElement;
+
+    const payload = {
+      user_identifier: userIdentifierInput.value,
+      request_type: requestTypeSelect.value,
+      details: detailsTextarea.value,
+      origin: 'portal_transparencia_front'
+    };
+
+    try {
+      const response = await fetch('http://localhost:3000/api/arco/request', {
+        method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Error al procesar la solicitud.');
+
+      // Feedback Exitoso
+      messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200";
+      messageBox.innerHTML = `⚖️ <strong>Solicitud Ingresada</strong><br>Tu trámite se registró con éxito en la base de datos fiscalizadora. <br><span class="text-xs text-emerald-700 font-normal">ID de Seguimiento: ${result.data.id} - Estado: <strong>${result.data.status}</strong></span>`;
+      messageBox.classList.remove('hidden');
+      form.reset();
+
+    } catch (error: any) {
+      // Feedback Erróneo
+      messageBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-rose-50 text-rose-800 border border-rose-200";
+			messageBox.innerText = `❌ Error: ${error.message}`;
+			messageBox.classList.remove('hidden');
+    }
+  });
+</script>
